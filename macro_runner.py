@@ -1,43 +1,52 @@
 import time
 import threading
-import pyperclip
-import pyautogui
 from tkinter import messagebox
+import pyautogui
+import pyperclip
+import gui_styles as styles
 
 class MacroRunner:
-    def __init__(self, ui_update_callback):
+    def __init__(self, app):
+        self.app = app
         self.target_coords = None
-        self.ui_update_callback = ui_update_callback
 
     def start_coordinate_pick(self):
-        threading.Thread(target=self._capture_mouse_position, daemon=True).start()
+        self.app.coords_label.config(text="Get ready! Point your mouse target...", foreground=styles.ALERT_COLOR)
+        self.app.update()
+        threading.Thread(target=self.capture_mouse_position, daemon=True).start()
 
-    def _capture_mouse_position(self):
+    def capture_mouse_position(self):
         time.sleep(3)
         x, y = pyautogui.position()
         self.target_coords = (x, y)
-        self.ui_update_callback(f"Target Coordinates Saved: X={x}, Y={y}", "#27ae60")
+        self.app.coords_label.config(text=f"Target Coordinates Saved: X={x}, Y={y}", foreground=styles.SUCCESS_COLOR)
 
-    def run(self, chunks, button_to_toggle):
+    def run_auto_paste(self):
+        if not self.app.chunks:
+            return
+        if not self.target_coords:
+            messagebox.showerror("Missing Information", "Please map a Window cursor position before running automation.")
+            return
+
         confirm = messagebox.askyesno("Confirm Auto-Run", "This will control your mouse and keyboard. Ready?")
         if confirm:
-            threading.Thread(target=self._execute, args=(chunks, button_to_toggle), daemon=True).start()
+            threading.Thread(target=self.execute_paste_macro, daemon=True).start()
 
-    def _execute(self, chunks, button_to_toggle):
-        button_to_toggle.config(state="disabled")
+    def execute_paste_macro(self):
+        self.app.autopaste_btn.config(state="disabled")
         try:
             pyautogui.click(self.target_coords[0], self.target_coords[1])
-            time.sleep(0.5) 
-            
-            for snippet in chunks:
+            time.sleep(0.5)
+
+            for index, snippet in enumerate(self.app.chunks):
                 pyperclip.copy(snippet)
-                pyautogui.hotkey('ctrl', 'v') 
+                pyautogui.hotkey('ctrl', 'v')
                 time.sleep(0.25)
                 pyautogui.press('enter')
-                time.sleep(1.0)
-                
+                time.sleep(1.5)
+
             messagebox.showinfo("Finished", "All codebase blocks automatically transferred!")
         except Exception as e:
             messagebox.showerror("Macro Interrupted", f"An error occurred: {e}")
         finally:
-            button_to_toggle.config(state="normal")
+            self.app.autopaste_btn.config(state="normal")
