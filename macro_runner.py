@@ -37,19 +37,28 @@ class MacroRunner:
         try:
             paste_delay = self.app.paste_delay_slider.get()
             submit_delay = self.app.submit_delay_slider.get()
+            total_chunks = len(self.app.chunks)
 
             pyautogui.click(self.target_coords[0], self.target_coords[1])
             time.sleep(0.5)
 
             for index, snippet in enumerate(self.app.chunks):
+                current_num = index + 1
+                self.app.progress_label.configure(
+                    text=f"Pasting: Chunk {current_num} of {total_chunks}",
+                    text_color=styles.BRIGHT_HIGHLIGHT
+                )
+                self.app.update_idletasks()
                 pyperclip.copy(snippet)
                 pyautogui.hotkey('ctrl', 'v')
                 time.sleep(paste_delay)
                 pyautogui.press('enter')
-                time.sleep(submit_delay)
+                time.sleep(submit_delay if index < total_chunks - 1 else 0.5)
 
+            self.app.progress_label.configure(text="Finished Transferring!", text_color=styles.SUCCESS_COLOR)
             messagebox.showinfo("Finished", "All codebase blocks automatically transferred!")
         except Exception as e:
+            self.app.progress_label.configure(text="Macro Aborted!", text_color=styles.ALERT_COLOR)
             messagebox.showerror("Macro Interrupted", f"An error occurred: {e}")
         finally:
             self.app.autopaste_btn.configure(state="normal")

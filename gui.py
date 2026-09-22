@@ -129,6 +129,12 @@ class AppGUI(ctk.CTk):
         )
         self.stats_label.pack(anchor="w", padx=15, pady=5)
 
+        self.progress_label = ctk.CTkLabel(
+            control_panel, text="Macro Idle",
+            font=(styles.FONT_FAMILY, 13, "bold"), text_color=styles.MUTED_TEXT, justify="left"
+        )
+        self.progress_label.pack(anchor="w", padx=15, pady=(5, 10))
+
     def _update_paste_lbl(self, val):
         self.paste_val_lbl.configure(text=f"{float(val):.2f}s")
 
