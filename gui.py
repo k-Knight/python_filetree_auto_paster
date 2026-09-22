@@ -1,90 +1,174 @@
 import os
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+import customtkinter as ctk
+from tkinter import filedialog
 import gui_styles as styles
+from code_splitter import CodeSplitter
 from tree_manager import TreeManager
 from macro_runner import MacroRunner
-from code_splitter import CodeSplitter
 
-class AppGUI(tk.Tk):
+class AppGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Codebase Splitter & Auto-Paster")
-        self.geometry("800x650")
 
-        styles.apply_modern_theme(self)
+        self.title("Code Splitter & Automation Macro")
+        self.geometry("980x720")
+        self.configure(fg_color=styles.BG_COLOR)
 
         self.splitter = CodeSplitter()
+        self.macro = MacroRunner(self)
+
         self.target_directory = ""
         self.chunks = []
 
-        self.tree_mgr = TreeManager(self, self.splitter)
-        self.macro_runner = MacroRunner(self)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        self.create_widgets()
+        self.create_top_bar()
+        self.create_main_content()
+        self.create_bottom_bar()
 
-    def create_widgets(self):
-        dir_frame = ttk.LabelFrame(self, text=" 1. Select Codebase Directory ")
-        dir_frame.pack(fill="x", padx=15, pady=8)
+        self.tree_manager = TreeManager(self, self.splitter, self.tree_scroll_frame)
 
-        self.dir_label = ttk.Label(dir_frame, text="No directory selected", style="Muted.TLabel")
-        self.dir_label.pack(side="left", fill="x", expand=True, padx=5)
+    def create_top_bar(self):
+        top_frame = ctk.CTkFrame(self, fg_color=styles.SURFACE_COLOR, height=60, corner_radius=8)
+        top_frame.grid(row=0, column=0, sticky="ew", padx=15, pady=(15, 5))
+        top_frame.pack_propagate(False)
 
-        ttk.Button(dir_frame, text="Browse...", command=self.browse_directory).pack(side="right")
+        self.dir_label = ctk.CTkLabel(
+            top_frame, text="No Directory Selected",
+            font=(styles.FONT_FAMILY, 13), text_color=styles.MUTED_TEXT
+        )
+        self.dir_label.pack(side="left", padx=15, fill="x", expand=True, anchor="w")
 
-        tree_frame = ttk.LabelFrame(self, text=" 2. Select Files/Folders to Include ")
-        tree_frame.pack(fill="both", expand=True, padx=15, pady=8)
+        browse_btn = ctk.CTkButton(
+            top_frame, text="Browse Folder", font=(styles.FONT_FAMILY, 12, "bold"),
+            fg_color=styles.ACCENT_COLOR, hover_color=styles.HOVER_COLOR,
+            command=self.browse_folder
+        )
+        browse_btn.pack(side="right", padx=15)
 
-        self.tree = ttk.Treeview(tree_frame, selectmode="none", show="tree")
-        self.tree.pack(fill="both", expand=True, side="left")
+    def create_main_content(self):
+        content_frame = ctk.CTkFrame(self, fg_color="transparent")
+        content_frame.grid(row=1, column=0, sticky="nsew", padx=15, pady=10)
+        content_frame.grid_columnconfigure(0, weight=4)
+        content_frame.grid_columnconfigure(1, weight=3)
+        content_frame.grid_rowconfigure(0, weight=1)
 
-        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(fill="y", side="right")
+        left_frame = ctk.CTkFrame(content_frame, fg_color=styles.SURFACE_COLOR, corner_radius=8)
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        left_frame.grid_rowconfigure(1, weight=1)
+        left_frame.grid_columnconfigure(0, weight=1)
 
-        self.tree.bind("<Button-1>", self.tree_mgr.on_tree_click)
+        tree_title = ctk.CTkLabel(
+            left_frame, text="Project Workspace Files",
+            font=(styles.FONT_FAMILY, 14, "bold"), text_color=styles.BRIGHT_HIGHLIGHT
+        )
+        tree_title.grid(row=0, column=0, sticky="w", padx=15, pady=10)
 
-        paste_frame = ttk.LabelFrame(self, text=" 3. Target Window Automation (Optional) ")
-        paste_frame.pack(fill="x", padx=15, pady=8)
+        self.tree_scroll_frame = ctk.CTkScrollableFrame(
+            left_frame, fg_color=styles.BG_COLOR, corner_radius=6
+        )
+        self.tree_scroll_frame.grid(row=1, column=0, sticky="nsew", padx=15, pady=(0, 15))
 
-        self.coords_label = ttk.Label(paste_frame, text="Target Cursor Position: Not Set", style="Muted.TLabel")
-        self.coords_label.pack(side="left", padx=5)
+        right_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
+        right_frame.grid(row=0, column=1, sticky="nsew")
+        right_frame.grid_rowconfigure(0, weight=1)
+        right_frame.grid_columnconfigure(0, weight=1)
 
-        ttk.Button(paste_frame, text="Pick Position (3s Delay)", command=self.macro_runner.start_coordinate_pick).pack(side="right")
+        control_panel = ctk.CTkFrame(right_frame, fg_color=styles.SURFACE_COLOR, corner_radius=8)
+        control_panel.grid(row=0, column=0, sticky="nsew")
 
-        control_frame = ttk.Frame(self, padding=5)
-        control_frame.pack(fill="x", padx=15, pady=10)
+        m_title = ctk.CTkLabel(control_panel, text="Automation Configuration", font=(styles.FONT_FAMILY, 14, "bold"), text_color=styles.BRIGHT_HIGHLIGHT)
+        m_title.pack(anchor="w", padx=15, pady=10)
 
-        self.process_btn = ttk.Button(control_frame, text="⚡ Chunk Selected Files", command=self.process_files)
-        self.process_btn.pack(side="left", padx=5, expand=True, fill="x")
+        map_btn = ctk.CTkButton(
+            control_panel, text="Set Target Area", font=(styles.FONT_FAMILY, 12, "bold"),
+            fg_color="#3e3e42", hover_color=styles.HOVER_COLOR,
+            command=lambda: self.macro.start_coordinate_pick()
+        )
+        map_btn.pack(fill="x", padx=15, pady=5)
 
-        self.autopaste_btn = ttk.Button(control_frame, text="🚀 Run Auto-Paste Macro", command=self.macro_runner.run_auto_paste, state="disabled")
-        self.autopaste_btn.pack(side="right", padx=5, expand=True, fill="x")
+        self.coords_label = ctk.CTkLabel(
+            control_panel, text="No coordinates mapped yet.",
+            font=(styles.FONT_FAMILY, 12, "italic"), text_color=styles.MUTED_TEXT
+        )
+        self.coords_label.pack(anchor="w", padx=15, pady=(0, 15))
 
-    def browse_directory(self):
-        directory = filedialog.askdirectory()
-        if directory:
-            self.target_directory = os.path.normpath(directory)
-            self.dir_label.config(text=self.target_directory, font=(styles.FONT_FAMILY, 10), foreground=styles.TEXT_COLOR)
-            self.tree_mgr.populate_tree()
+        t_title = ctk.CTkLabel(control_panel, text="Macro Delay Settings", font=(styles.FONT_FAMILY, 13, "bold"), text_color=styles.TEXT_COLOR)
+        t_title.pack(anchor="w", padx=15, pady=(10, 5))
 
-    def process_files(self):
-        if not self.target_directory:
-            messagebox.showerror("Error", "Please select a codebase directory first.")
-            return
+        paste_label_frame = ctk.CTkFrame(control_panel, fg_color="transparent")
+        paste_label_frame.pack(fill="x", padx=15)
+        ctk.CTkLabel(paste_label_frame, text="Paste Delay:", font=(styles.FONT_FAMILY, 11)).pack(side="left")
+        self.paste_val_lbl = ctk.CTkLabel(paste_label_frame, text="0.25s", font=(styles.FONT_FAMILY, 11, "bold"), text_color=styles.BRIGHT_HIGHLIGHT)
+        self.paste_val_lbl.pack(side="right")
 
-        selected_files = self.tree_mgr.get_all_checked_files()
+        self.paste_delay_slider = ctk.CTkSlider(control_panel, from_=0.05, to=1.5, number_of_steps=29, command=self._update_paste_lbl)
+        self.paste_delay_slider.set(0.25)
+        self.paste_delay_slider.pack(fill="x", padx=15, pady=(2, 10))
+
+        submit_label_frame = ctk.CTkFrame(control_panel, fg_color="transparent")
+        submit_label_frame.pack(fill="x", padx=15)
+        ctk.CTkLabel(submit_label_frame, text="Post-Submit Delay:", font=(styles.FONT_FAMILY, 11)).pack(side="left")
+        self.submit_val_lbl = ctk.CTkLabel(submit_label_frame, text="1.50s", font=(styles.FONT_FAMILY, 11, "bold"), text_color=styles.BRIGHT_HIGHLIGHT)
+        self.submit_val_lbl.pack(side="right")
+
+        self.submit_delay_slider = ctk.CTkSlider(control_panel, from_=0.5, to=5.0, number_of_steps=45, command=self._update_submit_lbl)
+        self.submit_delay_slider.set(1.50)
+        self.submit_delay_slider.pack(fill="x", padx=15, pady=(2, 10))
+
+        sep = ctk.CTkFrame(control_panel, height=2, fg_color="#333333")
+        sep.pack(fill="x", padx=15, pady=15)
+
+        p_title = ctk.CTkLabel(control_panel, text="Processing Status", font=(styles.FONT_FAMILY, 13, "bold"), text_color=styles.TEXT_COLOR)
+        p_title.pack(anchor="w", padx=15, pady=(0, 5))
+
+        self.stats_label = ctk.CTkLabel(
+            control_panel, text="Selected Files: 0\nGenerated Chunks: 0",
+            font=(styles.FONT_FAMILY, 13), justify="left"
+        )
+        self.stats_label.pack(anchor="w", padx=15, pady=5)
+
+    def _update_paste_lbl(self, val):
+        self.paste_val_lbl.configure(text=f"{float(val):.2f}s")
+
+    def _update_submit_lbl(self, val):
+        self.submit_val_lbl.configure(text=f"{float(val):.2f}s")
+
+    def create_bottom_bar(self):
+        bottom_frame = ctk.CTkFrame(self, fg_color=styles.SURFACE_COLOR, height=60, corner_radius=8)
+        bottom_frame.grid(row=2, column=0, sticky="ew", padx=15, pady=(5, 15))
+        bottom_frame.pack_propagate(False)
+
+        process_btn = ctk.CTkButton(
+            bottom_frame, text="1. Process Snippets", font=(styles.FONT_FAMILY, 12, "bold"),
+            fg_color="#2e7d32", hover_color="#1b5e20",
+            command=self.process_selected_code
+        )
+        process_btn.pack(side="left", padx=15)
+
+        self.autopaste_btn = ctk.CTkButton(
+            bottom_frame, text="2. Execute Auto-Paste", font=(styles.FONT_FAMILY, 12, "bold"),
+            fg_color=styles.ACCENT_COLOR, hover_color=styles.HOVER_COLOR,
+            command=lambda: self.macro.run_auto_paste()
+        )
+        self.autopaste_btn.pack(side="right", padx=15)
+
+    def browse_folder(self):
+        folder = filedialog.askdirectory()
+        if folder:
+            self.target_directory = os.path.normpath(folder)
+            self.dir_label.configure(text=self.target_directory, text_color=styles.TEXT_COLOR)
+            self.tree_manager.populate_tree()
+
+    def process_selected_code(self):
+        selected_files = self.tree_manager.get_all_checked_files()
         if not selected_files:
-            messagebox.showwarning("Warning", "No files selected to process.")
+            self.stats_label.configure(text="Warning: No files selected to parse!", text_color=styles.ALERT_COLOR)
             return
 
         self.chunks = self.splitter.process_selected_files(self.target_directory, selected_files)
-
-        if self.chunks:
-            messagebox.showinfo("Success", f"Generated {len(self.chunks)} clipboard snippets successfully!")
-            self.autopaste_btn.config(state="normal")
-            import pyperclip
-            pyperclip.copy(self.chunks[0])
-        else:
-            messagebox.showwarning("Notice", "No text content found in selected files.")
-            self.autopaste_btn.config(state="disabled")
+        self.stats_label.configure(
+            text=f"Selected Files: {len(selected_files)}\nGenerated Chunks: {len(self.chunks)}",
+            text_color=styles.SUCCESS_COLOR
+        )
