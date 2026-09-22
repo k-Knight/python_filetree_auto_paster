@@ -47,6 +47,9 @@ class AppGUI(ctk.CTk):
         )
         browse_btn.pack(side="right", padx=15)
 
+    def _update_buffer_lbl(self, val):
+        self.buffer_val_lbl.configure(text=f"{int(val)} ch")
+
     def create_main_content(self):
         content_frame = ctk.CTkFrame(self, fg_color="transparent")
         content_frame.grid(row=1, column=0, sticky="nsew", padx=15, pady=10)
@@ -117,6 +120,16 @@ class AppGUI(ctk.CTk):
         self.submit_delay_slider.set(1.50)
         self.submit_delay_slider.pack(fill="x", padx=15, pady=(2, 10))
 
+        buffer_label_frame = ctk.CTkFrame(control_panel, fg_color="transparent")
+        buffer_label_frame.pack(fill="x", padx=15, pady=(10, 0))
+        ctk.CTkLabel(buffer_label_frame, text="Max Chunk Buffer:", font=(styles.FONT_FAMILY, 11)).pack(side="left")
+        self.buffer_val_lbl = ctk.CTkLabel(buffer_label_frame, text="8000 ch", font=(styles.FONT_FAMILY, 11, "bold"), text_color=styles.BRIGHT_HIGHLIGHT)
+        self.buffer_val_lbl.pack(side="right")
+
+        self.buffer_size_slider = ctk.CTkSlider(control_panel, from_=1000, to=32000, number_of_steps=31, command=self._update_buffer_lbl)
+        self.buffer_size_slider.set(8000)
+        self.buffer_size_slider.pack(fill="x", padx=15, pady=(2, 10))
+
         sep = ctk.CTkFrame(control_panel, height=2, fg_color="#333333")
         sep.pack(fill="x", padx=15, pady=15)
 
@@ -173,7 +186,14 @@ class AppGUI(ctk.CTk):
             self.stats_label.configure(text="Warning: No files selected to parse!", text_color=styles.ALERT_COLOR)
             return
 
-        self.chunks = self.splitter.process_selected_files(self.target_directory, selected_files)
+        current_buffer = int(self.buffer_size_slider.get())
+
+        self.chunks = self.splitter.process_selected_files(
+            self.target_directory,
+            selected_files,
+            max_chars_override=current_buffer
+        )
+
         self.stats_label.configure(
             text=f"Selected Files: {len(selected_files)}\nGenerated Chunks: {len(self.chunks)}",
             text_color=styles.SUCCESS_COLOR
